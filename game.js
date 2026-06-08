@@ -4,64 +4,202 @@ let gameState = {
     level: 1,
     dishesCreated: 0,
     combinedIngredients: [],
-    lastRecipeName: ''
+    preparedDish: null,
+    completedDishes: [],
+    activeCustomers: []
 };
 
 // Éléments du DOM
-const ingredientsGrid = document.getElementById('ingredientsGrid');
+const ingredientSearch = document.getElementById('ingredientSearch');
+const ingredientsList = document.getElementById('ingredientsList');
 const potContent = document.getElementById('potContent');
 const combinedList = document.getElementById('combinedList');
 const cookBtn = document.getElementById('cookBtn');
 const resetBtn = document.getElementById('resetBtn');
+const recipesToggle = document.getElementById('recipesToggle');
+const recipesPanel = document.getElementById('recipesPanel');
 const recipesList = document.getElementById('recipesList');
 const scoreDisplay = document.getElementById('score');
 const levelDisplay = document.getElementById('level');
 const dishesDisplay = document.getElementById('dishes');
+const serviceArea = document.getElementById('serviceArea');
+const completedDishesArea = document.getElementById('completedDishes');
+const preparedDishDiv = document.getElementById('preparedDish');
+const dishEmojiSpan = document.getElementById('dishEmoji');
+const dishNameSpan = document.getElementById('dishName');
+
+// Modals
 const successModal = document.getElementById('successModal');
 const errorModal = document.getElementById('errorModal');
+const deliveredModal = document.getElementById('deliveredModal');
 
-// Variables de drag and drop
-let draggedElement = null;
+let currentPreparedDish = null;
+let draggedDish = null;
 
-// Initialisation du jeu
+// Initialisation
 function initGame() {
     loadGameState();
-    renderIngredients();
+    renderIngredients('');
     renderRecipes();
+    addInitialCustomers();
     updateDisplay();
+    setupEventListeners();
 }
 
-// Charger l'état du jeu depuis localStorage
+function setupEventListeners() {
+    ingredientSearch.addEventListener('input', (e) => {
+        renderIngredients(e.target.value);
+    });
+    
+    cookBtn.addEventListener('click', cookDish);
+    resetBtn.addEventListener('click', resetPot);
+    recipesToggle.addEventListener('click', toggleRecipes);
+    
+    // Fermer modals
+    document.getElementById('closeModal').addEventListener('click', closeSuccessModal);
+    document.getElementById('continueBtn').addEventListener('click', closeSuccessModal);
+    document.getElementById('closeErrorModal').addEventListener('click', () => {
+        errorModal.style.display = 'none';
+    });
+    document.getElementById('tryAgainBtn').addEventListener('click', () => {
+        errorModal.style.display = 'none';
+    });
+    document.getElementById('closeDeliveredModal').addEventListener('click', () => {
+        deliveredModal.style.display = 'none';
+    });
+    document.getElementById('continueDeliveredBtn').addEventListener('click', () => {
+        deliveredModal.style.display = 'none';
+    });
+}
+
+// Charger état
 function loadGameState() {
-    const saved = localStorage.getItem('cookingGameState');
+    const saved = localStorage.getItem('restaurantGameState');
     if (saved) {
         gameState = JSON.parse(saved);
     }
 }
 
-// Sauvegarder l'état du jeu
+// Sauvegarder état
 function saveGameState() {
-    localStorage.setItem('cookingGameState', JSON.stringify(gameState));
+    localStorage.setItem('restaurantGameState', JSON.stringify(gameState));
 }
 
-// Afficher les ingrédients
-function renderIngredients() {
-    ingredientsGrid.innerHTML = '';
+// Afficher les ingrédients avec recherche
+function renderIngredients(searchTerm) {
+    ingredientsList.innerHTML = '';
+    const filtered = availableIngredients.filter(ing => 
+        ing.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
     
-    availableIngredients.forEach(ingredient => {
+    filtered.forEach(ingredient => {
         const div = document.createElement('div');
         div.className = 'ingredient-item';
-        div.draggable = true;
         div.innerHTML = `
             <span class="ingredient-emoji">${ingredient.emoji}</span>
             <span>${ingredient.name}</span>
         `;
         
-        div.addEventListener('dragstart', dragStart);
-        div.addEventListener('dragend', dragEnd);
+        div.addEventListener('click', () => {
+            addIngredientToPot(ingredient.emoji);
+        });
         
-        ingredientsGrid.appendChild(div);
+        ingredientsList.appendChild(div);
     });
+}
+
+// Ajouter ingrédient à la casserole
+function addIngredientToPot(emoji) {
+    gameState.combinedIngredients.push(emoji);
+    updatePotDisplay();
+    updateCookButtonState();
+}
+
+// Mettre à jour l'affichage de la casserole
+function updatePotDisplay() {
+    potContent.innerHTML = '';
+    
+    if (gameState.combinedIngredients.length === 0) {
+        potContent.innerHTML = '<p class="empty-text">Commencez à ajouter des ingrédients</p>';
+        return;
+    }
+    
+    gameState.combinedIngredients.forEach((ingredient, index) => {
+        const tag = document.createElement('div');
+        tag.className = 'ingredient-tag';
+        
+        const ingredientName = availableIngredients.find(ing => ing.emoji === ingredient)?.name || 'Ingrédient';
+        
+        tag.innerHTML = `
+            ${ingredient}
+            <button class="remove-ingredient" data-index="${index}">×</button>
+        `;
+        
+        tag.querySelector('.remove-ingredient').addEventListener('click', () => {
+            gameState.combinedIngredients.splice(index, 1);
+            updatePotDisplay();
+            updateCookButtonState();
+        });
+        
+        potContent.appendChild(tag);
+    });
+    
+    updateCombinedList();
+}
+
+function updateCombinedList() {
+    if (gameState.combinedIngredients.length === 0) {
+        combinedList.innerHTML = '<p class="empty-text">Aucun ingrédient</p>';
+        return;
+    }
+    
+    combinedList.innerHTML = gameState.combinedIngredients
+        .map(ing => `<span class="recipe-ingredient-tag">${ing}</span>`)
+        .join('');
+}
+
+function updateCookButtonState() {
+    cookBtn.disabled = gameState.combinedIngredients.length === 0;
+}
+
+// Cuisiner le plat
+function cookDish() {
+    const recipe = getRecipeByIngredients(gameState.combinedIngredients);
+    
+    if (recipe) {
+        currentPreparedDish = recipe;
+        gameState.preparedDish = recipe;
+        gameState.combinedIngredients = [];
+        
+        // Afficher le plat préparé
+        dishEmojiSpan.textContent = recipe.emoji;
+        dishNameSpan.textContent = recipe.name;
+        preparedDishDiv.style.display = 'block';
+        
+        // Ajouter aux plats complétés
+        gameState.completedDishes.push({
+            recipe: recipe,
+            timestamp: Date.now()
+        });
+        
+        gameState.dishesCreated += 1;
+        
+        updatePotDisplay();
+        updateCookButtonState();
+        renderCompletedDishes();
+        updateDisplay();
+        
+        showSuccessModal(recipe);
+    } else {
+        showErrorModal();
+    }
+}
+
+// Réinitialiser la casserole
+function resetPot() {
+    gameState.combinedIngredients = [];
+    updatePotDisplay();
+    updateCookButtonState();
 }
 
 // Afficher les recettes
@@ -84,7 +222,7 @@ function renderRecipes() {
             <div class="recipe-ingredients">
                 ${ingredientSpans}
             </div>
-            <div style="font-size: 0.8em; color: ${difficultyColor}; margin-top: 5px; font-weight: bold;">
+            <div class="recipe-difficulty" style="color: ${difficultyColor};">
                 ${recipe.difficulty} - ${recipe.points} pts
             </div>
         `;
@@ -93,149 +231,140 @@ function renderRecipes() {
     });
 }
 
-// Drag and Drop
-function dragStart(e) {
-    draggedElement = e.target.closest('.ingredient-item');
-    e.dataTransfer.effectAllowed = 'copy';
-    e.dataTransfer.setData('text/plain', draggedElement.textContent);
-    draggedElement.style.opacity = '0.5';
+function toggleRecipes() {
+    recipesPanel.classList.toggle('active');
 }
 
-function dragEnd(e) {
-    if (draggedElement) {
-        draggedElement.style.opacity = '1';
-    }
-}
-
-potContent.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-    potContent.classList.add('drag-over');
-});
-
-potContent.addEventListener('dragleave', () => {
-    potContent.classList.remove('drag-over');
-});
-
-potContent.addEventListener('drop', (e) => {
-    e.preventDefault();
-    potContent.classList.remove('drag-over');
+// Afficher les plats complétés
+function renderCompletedDishes() {
+    completedDishesArea.innerHTML = '';
     
-    if (draggedElement) {
-        const ingredientEmoji = draggedElement.querySelector('.ingredient-emoji').textContent;
-        addIngredientToPot(ingredientEmoji);
-    }
-});
-
-// Ajouter un ingrédient à la casserole
-function addIngredientToPot(emoji) {
-    gameState.combinedIngredients.push(emoji);
-    updatePotDisplay();
-    updateCookButtonState();
-}
-
-// Mettre à jour l'affichage de la casserole
-function updatePotDisplay() {
-    potContent.innerHTML = '';
-    
-    if (gameState.combinedIngredients.length === 0) {
-        potContent.innerHTML = '<p class="empty-text">Glissez les ingrédients ici</p>';
+    if (gameState.completedDishes.length === 0) {
+        completedDishesArea.innerHTML = '<p class="empty-text">Aucun plat préparé</p>';
         return;
     }
     
-    gameState.combinedIngredients.forEach((ingredient, index) => {
-        const tag = document.createElement('div');
-        tag.className = 'ingredient-tag';
+    gameState.completedDishes.forEach((dish, index) => {
+        const div = document.createElement('div');
+        div.className = 'completed-dish';
+        div.draggable = true;
         
-        const ingredientName = availableIngredients.find(ing => ing.emoji === ingredient)?.name || 'Ingrédient';
-        
-        tag.innerHTML = `
-            ${ingredient} ${ingredientName}
-            <button class="remove-ingredient" data-index="${index}">×</button>
+        div.innerHTML = `
+            <div class="dish-info">
+                <span class="dish-emoji-small">${dish.recipe.emoji}</span>
+                <div class="dish-details">
+                    <div class="dish-title">${dish.recipe.name}</div>
+                </div>
+            </div>
+            <button class="dish-delivery-btn" onclick="deliverDishToCustomer(${index})">Servir</button>
         `;
         
-        tag.querySelector('.remove-ingredient').addEventListener('click', () => {
-            removeIngredient(index);
+        div.addEventListener('dragstart', (e) => {
+            draggedDish = index;
+            e.dataTransfer.effectAllowed = 'move';
         });
         
-        potContent.appendChild(tag);
+        completedDishesArea.appendChild(div);
     });
-    
-    // Mettre à jour la liste des ingrédients combinés
-    updateCombinedList();
 }
 
-// Mettre à jour la liste affichée
-function updateCombinedList() {
-    if (gameState.combinedIngredients.length === 0) {
-        combinedList.innerHTML = '<p class="empty-text">Aucun ingrédient</p>';
+// Ajouter des clients
+function addInitialCustomers() {
+    const initialCustomers = generateCustomers(3);
+    gameState.activeCustomers = initialCustomers;
+    renderCustomers();
+    
+    // Ajouter des clients toutes les 15 secondes
+    setInterval(() => {
+        if (gameState.activeCustomers.length < 5) {
+            const newCustomer = generateCustomers(1)[0];
+            gameState.activeCustomers.push(newCustomer);
+            renderCustomers();
+        }
+    }, 15000);
+}
+
+// Afficher les clients
+function renderCustomers() {
+    serviceArea.innerHTML = '';
+    
+    if (gameState.activeCustomers.length === 0) {
+        serviceArea.innerHTML = '<p class="waiting-text">En attente de clients...</p>';
         return;
     }
     
-    combinedList.innerHTML = gameState.combinedIngredients
-        .map(ing => `<span class="recipe-ingredient-tag">${ing}</span>`)
-        .join('');
-}
-
-// Retirer un ingrédient
-function removeIngredient(index) {
-    gameState.combinedIngredients.splice(index, 1);
-    updatePotDisplay();
-    updateCookButtonState();
-}
-
-// Mettre à jour l'état du bouton cuire
-function updateCookButtonState() {
-    cookBtn.disabled = gameState.combinedIngredients.length === 0;
-}
-
-// Cuisiner le plat
-cookBtn.addEventListener('click', () => {
-    cookDish();
-});
-
-function cookDish() {
-    const recipe = getRecipeByIngredients(gameState.combinedIngredients);
-    
-    if (recipe) {
-        // Succès !
-        showSuccessModal(recipe);
-        gameState.score += recipe.points;
-        gameState.dishesCreated += 1;
-        gameState.lastRecipeName = recipe.name;
+    gameState.activeCustomers.forEach((customer, index) => {
+        const div = document.createElement('div');
+        div.className = 'customer';
         
-        // Augmenter le niveau tous les 3 plats
-        if (gameState.dishesCreated % 3 === 0) {
+        const dish = customer.requestedDish;
+        const pointsText = `+${dish.points} pts`;
+        
+        div.innerHTML = `
+            <div class="customer-name">${customer.name}</div>
+            <div class="customer-request">"${customer.message}"</div>
+            <div class="customer-dish">
+                <span class="customer-dish-emoji">${dish.emoji}</span>
+                <span>${dish.name}</span>
+            </div>
+            <div class="customer-points">${pointsText}</div>
+        `;
+        
+        serviceArea.appendChild(div);
+    });
+}
+
+// Livrer un plat à un client
+function deliverDishToCustomer(dishIndex) {
+    if (!gameState.completedDishes[dishIndex]) return;
+    
+    const dish = gameState.completedDishes[dishIndex];
+    
+    // Chercher un client qui demande ce plat
+    const customerIndex = gameState.activeCustomers.findIndex(
+        c => c.requestedDish.id === dish.recipe.id
+    );
+    
+    if (customerIndex !== -1) {
+        const customer = gameState.activeCustomers[customerIndex];
+        gameState.score += dish.recipe.points;
+        
+        // Augmenter le niveau
+        if (gameState.score % 500 === 0) {
             gameState.level += 1;
         }
         
-        saveGameState();
+        showDeliveredModal(customer, dish.recipe);
+        
+        // Retirer le client et le plat
+        gameState.activeCustomers.splice(customerIndex, 1);
+        gameState.completedDishes.splice(dishIndex, 1);
+        
+        renderCustomers();
+        renderCompletedDishes();
         updateDisplay();
+        saveGameState();
     } else {
-        // Pas une recette valide
-        showErrorModal();
+        alert('❌ Ce client n\'a pas commandé ce plat!');
     }
 }
 
-// Réinitialiser
-resetBtn.addEventListener('click', () => {
-    gameState.combinedIngredients = [];
-    updatePotDisplay();
-    updateCookButtonState();
-});
+// Afficher le modal de succès de livraison
+function showDeliveredModal(customer, dish) {
+    document.getElementById('deliveredMessage').textContent = 
+        `${customer.name} a adoré le ${dish.name}! 😋`;
+    document.getElementById('deliveredPoints').textContent = 
+        `+${dish.points} points!`;
+    deliveredModal.style.display = 'block';
+}
 
-// Afficher le modal de succès
+// Modals de cuisine
 function showSuccessModal(recipe) {
-    const modalTitle = document.getElementById('modalTitle');
-    const modalMessage = document.getElementById('modalMessage');
-    const recipeDetails = document.getElementById('recipeDetails');
-    const modalPoints = document.getElementById('modalPoints');
+    document.getElementById('modalTitle').textContent = `🎉 ${recipe.name}`;
+    document.getElementById('modalMessage').textContent = recipe.description;
     
-    modalTitle.textContent = `🎉 ${recipe.name}`;
-    modalMessage.textContent = recipe.description;
-    
-    recipeDetails.innerHTML = `
-        <h3>Ingrédients utilisés:</h3>
+    document.getElementById('recipeDetails').innerHTML = `
+        <h3>Ingrédients:</h3>
         <p>${recipe.ingredients.map(ing => {
             const name = availableIngredients.find(i => i.emoji === ing)?.name || 'Ingrédient';
             return `${ing} ${name}`;
@@ -243,15 +372,15 @@ function showSuccessModal(recipe) {
         <p><strong>Difficulté:</strong> ${recipe.difficulty}</p>
     `;
     
-    modalPoints.textContent = `+${recipe.points} points!`;
-    
+    document.getElementById('modalPoints').textContent = `Plat prêt à servir!`;
     successModal.style.display = 'block';
-    successModal.querySelector('.modal-content').classList.add('success-animation');
 }
 
-// Afficher le modal d'erreur
+function closeSuccessModal() {
+    successModal.style.display = 'none';
+}
+
 function showErrorModal() {
-    const errorMessage = document.getElementById('errorMessage');
     const ingList = gameState.combinedIngredients
         .map(ing => {
             const name = availableIngredients.find(i => i.emoji === ing)?.name || 'Ingrédient';
@@ -259,49 +388,10 @@ function showErrorModal() {
         })
         .join(', ');
     
-    errorMessage.textContent = `La combinaison "${ingList}" n'existe pas dans notre recettaire. Essayez une autre combinaison!`;
-    
+    document.getElementById('errorMessage').textContent = 
+        `La combinaison "${ingList}" n'existe pas! Consultez les recettes.`;
     errorModal.style.display = 'block';
 }
-
-// Fermer les modals
-document.getElementById('closeModal').addEventListener('click', () => {
-    successModal.style.display = 'none';
-    successModal.querySelector('.modal-content').classList.remove('success-animation');
-    gameState.combinedIngredients = [];
-    updatePotDisplay();
-    updateCookButtonState();
-});
-
-document.getElementById('continueBtn').addEventListener('click', () => {
-    successModal.style.display = 'none';
-    successModal.querySelector('.modal-content').classList.remove('success-animation');
-    gameState.combinedIngredients = [];
-    updatePotDisplay();
-    updateCookButtonState();
-});
-
-document.getElementById('closeErrorModal').addEventListener('click', () => {
-    errorModal.style.display = 'none';
-});
-
-document.getElementById('tryAgainBtn').addEventListener('click', () => {
-    errorModal.style.display = 'none';
-});
-
-// Fermer les modals en cliquant en dehors
-window.addEventListener('click', (e) => {
-    if (e.target === successModal) {
-        successModal.style.display = 'none';
-        successModal.querySelector('.modal-content').classList.remove('success-animation');
-        gameState.combinedIngredients = [];
-        updatePotDisplay();
-        updateCookButtonState();
-    }
-    if (e.target === errorModal) {
-        errorModal.style.display = 'none';
-    }
-});
 
 // Mettre à jour l'affichage
 function updateDisplay() {
@@ -310,18 +400,6 @@ function updateDisplay() {
     dishesDisplay.textContent = gameState.dishesCreated;
 }
 
-// Ajouter des raccourcis clavier
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !cookBtn.disabled) {
-        cookDish();
-    }
-    if (e.key === 'Escape') {
-        resetBtn.click();
-    }
-});
-
-// Initialiser le jeu au chargement
+// Initialiser au chargement
 window.addEventListener('load', initGame);
-
-// Sauvegarder périodiquement
 setInterval(saveGameState, 10000);

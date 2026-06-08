@@ -2,72 +2,106 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍳 Jeu de Cuisine - Combinaison d'Ingrédients</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>🍳 Restaurant Tycoon - Cooking Game</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <!-- Header -->
         <header class="header">
-            <h1>🍳 Masterchef Cuisine</h1>
-            <div class="stats">
-                <div class="stat-item">
-                    <span class="stat-label">Points:</span>
-                    <span class="stat-value" id="score">0</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Niveau:</span>
-                    <span class="stat-value" id="level">1</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Plats Créés:</span>
-                    <span class="stat-value" id="dishes">0</span>
+            <div class="header-content">
+                <h1>🍳 Restaurant Tycoon</h1>
+                <div class="stats-bar">
+                    <div class="stat">
+                        <span class="stat-icon">⭐</span>
+                        <span class="stat-value" id="score">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-icon">📈</span>
+                        <span class="stat-value" id="level">1</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-icon">🍽️</span>
+                        <span class="stat-value" id="dishes">0</span>
+                    </div>
                 </div>
             </div>
         </header>
 
-        <!-- Main Game Area -->
-        <div class="game-area">
-            <!-- Ingredients Panel -->
-            <div class="ingredients-panel">
-                <h2>🥘 Ingrédients Disponibles</h2>
-                <div class="ingredients-grid" id="ingredientsGrid">
-                    <!-- Les ingrédients seront générés par JS -->
+        <!-- Main Game Container -->
+        <div class="game-container">
+            <!-- Left Panel: Ingredients Search -->
+            <div class="ingredients-section">
+                <h2>🥘 Ingrédients</h2>
+                <div class="search-box">
+                    <input 
+                        type="text" 
+                        id="ingredientSearch" 
+                        class="search-input" 
+                        placeholder="Rechercher un ingrédient..."
+                    >
+                    <span class="search-icon">🔍</span>
+                </div>
+                <div class="ingredients-list" id="ingredientsList">
+                    <!-- Les ingrédients s'affichent ici -->
                 </div>
             </div>
 
-            <!-- Cooking Area -->
-            <div class="cooking-area">
-                <h2>🍲 Zone de Cuisson</h2>
-                <div class="pot">
-                    <div class="pot-content" id="potContent">
-                        <p class="empty-text">Glissez les ingrédients ici</p>
+            <!-- Center Panel: Cooking Area -->
+            <div class="cooking-section">
+                <div class="cooking-area">
+                    <h2>🍲 Votre Plat</h2>
+                    <div class="pot">
+                        <div class="pot-content" id="potContent">
+                            <p class="empty-text">Commencez à ajouter des ingrédients</p>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Combined Ingredients Display -->
-                <div class="combined-ingredients">
-                    <h3>Ingrédients Combinés:</h3>
-                    <div id="combinedList" class="combined-list">
-                        <p class="empty-text">Aucun ingrédient</p>
+                    <!-- Prepared Dish -->
+                    <div class="prepared-dish-container">
+                        <div class="prepared-dish" id="preparedDish" style="display: none;">
+                            <div class="dish-emoji" id="dishEmoji"></div>
+                            <div class="dish-name" id="dishName"></div>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Action Buttons -->
-                <div class="action-buttons">
-                    <button class="btn btn-cook" id="cookBtn" disabled>
-                        🔥 Cuire le Plat
-                    </button>
-                    <button class="btn btn-reset" id="resetBtn">
-                        🗑️ Réinitialiser
-                    </button>
+                    <!-- Combined Ingredients Display -->
+                    <div class="combined-ingredients">
+                        <h3>📋 Ingrédients:</h3>
+                        <div id="combinedList" class="combined-list">
+                            <p class="empty-text">Aucun ingrédient</p>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="action-buttons">
+                        <button class="btn btn-cook" id="cookBtn" disabled>
+                            🔥 Préparer
+                        </button>
+                        <button class="btn btn-reset" id="resetBtn">
+                            🗑️ Vider
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Recipes Panel -->
-            <div class="recipes-panel">
-                <h2>📖 Recettes Disponibles</h2>
+            <!-- Right Panel: Service Area -->
+            <div class="service-section">
+                <h2>🛎️ Zone de Service</h2>
+                <div class="service-area" id="serviceArea">
+                    <p class="waiting-text">En attente de clients...</p>
+                </div>
+                <div class="completed-dishes" id="completedDishes">
+                    <!-- Les plats complétés s'affichent ici -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Recipes Reference -->
+        <div class="recipes-reference">
+            <button class="recipes-toggle" id="recipesToggle">📖 Voir les Recettes</button>
+            <div class="recipes-panel" id="recipesPanel">
                 <div class="recipes-list" id="recipesList">
                     <!-- Les recettes seront générées par JS -->
                 </div>
@@ -78,7 +112,7 @@
         <div class="modal" id="successModal">
             <div class="modal-content success">
                 <span class="close" id="closeModal">&times;</span>
-                <h2 id="modalTitle">🎉 Félicitations!</h2>
+                <h2 id="modalTitle">🎉 Excellent!</h2>
                 <p id="modalMessage"></p>
                 <div class="recipe-details" id="recipeDetails"></div>
                 <p id="modalPoints" class="points"></p>
@@ -95,9 +129,21 @@
                 <button class="btn btn-primary" id="tryAgainBtn">Réessayer</button>
             </div>
         </div>
+
+        <!-- Customer Delivered Modal -->
+        <div class="modal" id="deliveredModal">
+            <div class="modal-content success">
+                <span class="close" id="closeDeliveredModal">&times;</span>
+                <h2>✨ Client Satisfait!</h2>
+                <p id="deliveredMessage"></p>
+                <p id="deliveredPoints" class="points"></p>
+                <button class="btn btn-primary" id="continueDeliveredBtn">Continuer</button>
+            </div>
+        </div>
     </div>
 
     <script src="recipes.js"></script>
+    <script src="customers.js"></script>
     <script src="game.js"></script>
 </body>
 </html>
